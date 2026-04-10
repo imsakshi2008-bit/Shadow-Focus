@@ -962,8 +962,83 @@ function generateTimetable() {
 function openResSheet(subj, ch) {
   document.getElementById('resSheetTitle').textContent = subj;
   document.getElementById('resSheetSub').textContent = ch + ' · Resources';
+  
+  const recContainer = document.querySelector('.res-section:last-child');
+  let recHtml = '<div class="res-sec-lbl">Recommended by Shadow</div>';
+  const s = subj.toLowerCase();
+
+  // 1. SPECIFIC SUBJECT OVERRIDES (Works across all streams)
+  if (s.includes('physical education') || s.includes('pe')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@ZakiSaudagar')">
+        <div class="res-item-icon" style="background:rgba(248,113,113,0.12)">🏃</div>
+        <div class="res-item-body"><div class="res-item-name">Zaki Saudagar</div><div class="res-item-meta">Top choice for PE Board Exams</div></div>
+        <span class="badge badge-r">Certified ✓</span>
+      </div>
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@RajatAroraOfficial')">
+        <div class="res-item-icon" style="background:rgba(251,191,36,0.12)">📖</div>
+        <div class="res-item-body"><div class="res-item-name">Rajat Arora (PE One-Shots)</div><div class="res-item-meta">Perfect for last-minute revision</div></div>
+      </div>`;
+  } 
+  else if (s.includes('computer science') || s.includes('cs') || s.includes('ip')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@AnjaliLuthra')">
+        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">💻</div>
+        <div class="res-item-body"><div class="res-item-name">Anjali Luthra</div><div class="res-item-meta">The gold standard for CS & IP</div></div>
+        <span class="badge badge-r">Elite Pick</span>
+      </div>
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@CodeitUp')">
+        <div class="res-item-icon" style="background:rgba(52,211,153,0.12)">🐍</div>
+        <div class="res-item-body"><div class="res-item-name">CodeitUp (Python/SQL)</div><div class="res-item-meta">Deep-dive for CS coding sections</div></div>
+      </div>`;
+  }
+  else if (s.includes('english')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@ShipraMishra')">
+        <div class="res-item-icon" style="background:rgba(124,92,252,0.12)">✍️</div>
+        <div class="res-item-body"><div class="res-item-name">Shipra Mishra</div><div class="res-item-meta">Best for English Literature & Writing</div></div>
+        <span class="badge badge-r">Verified</span>
+      </div>`;
+  }
+
+  // 2. STREAM-BASED DEFAULTS (Only runs if no specific subject was found above)
+  else if (APP.stream.includes('Science')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@physicswallah/playlists')">
+        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">⚡</div>
+        <div class="res-item-body"><div class="res-item-name">Physics Wallah (Alakh Pandey)</div><div class="res-item-meta">Top choice for PCM/PCB Concepts</div></div>
+        <span class="badge badge-r">Certified ✓</span>
+      </div>`;
+  } 
+  else if (APP.stream.includes('Commerce')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@SunilPanda-TheCommerceGuru')">
+        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">📊</div>
+        <div class="res-item-body"><div class="res-item-name">Sunil Panda – Commerce Guru</div><div class="res-item-meta">Best for Accounts, Economics & BST</div></div>
+        <span class="badge badge-r">Reddit Verified</span>
+      </div>`;
+  } 
+  else if (APP.stream.includes('Humanities') || APP.stream.includes('Arts')) {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/@MagnetBrainsEducation')">
+        <div class="res-item-icon" style="background:rgba(124,92,252,0.12)">📜</div>
+        <div class="res-item-body"><div class="res-item-name">Magnet Brains</div><div class="res-item-meta">Full NCERT coverage for Humanities</div></div>
+      </div>`;
+  } 
+
+  // 3. UNIVERSAL FALLBACK
+  else {
+    recHtml += `
+      <div class="res-item" onclick="window.open('https://www.youtube.com/results?search_query=class+12+${subj}+one+shot')">
+        <div class="res-item-icon" style="background:rgba(255,255,255,0.05)">🔍</div>
+        <div class="res-item-body"><div class="res-item-name">Search One-Shots</div><div class="res-item-meta">Finding best 2026 videos for ${subj}</div></div>
+      </div>`;
+  }
+
+  recContainer.innerHTML = recHtml;
   document.getElementById('resSheet').classList.add('open');
-}
+  }
+  
 function closeResSheet() { document.getElementById('resSheet').classList.remove('open'); }
 function addResourceFromSheet() {
   const v = document.getElementById('addResInp').value.trim(); if(!v) return;
