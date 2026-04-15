@@ -570,7 +570,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       </div>
       <div class="sec-label">Danger Zone</div>
       <div class="settings-group">
-        <div class="setting-row" onclick="if(confirm('Reset everything and redo onboarding?')){resetApp()}"><div class="setting-icon">🔄</div><div class="setting-body"><div class="setting-name" style="color:var(--danger)">Reset & Redo Onboarding</div></div><div class="setting-arrow" style="color:var(--danger)">›</div></div>
+        <div class="setting-row" onclick="resetApp()"><div class="setting-icon">🔄</div><div class="setting-body"><div class="setting-name" style="color:var(--danger)">Reset & Redo Onboarding</div></div><div class="setting-arrow" style="color:var(--danger)">›</div></div>
       </div>
       <div class="ver-txt"><div class="ver-logo">SHADOW</div>Version 1.0.0 · Made with 💙 in Satna</div>
     </div>
@@ -613,22 +613,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <div class="sheet-overlay" id="resSheet" onclick="if(event.target===this)closeResSheet()">
   <div class="sheet" id="resSheetInner">
     <div class="sheet-handle"></div>
-    <div class="sheet-hdr"><div class="sheet-title" id="resSheetTitle">Resources</div><div class="sheet-sub" id="resSheetSub">Resources for today</div></div>
+    <div class="sheet-hdr">
+      <div class="sheet-title" id="resSheetTitle">Resources</div>
+      <div class="sheet-sub" id="resSheetSub">Resources for today</div>
+    </div>
     <div class="add-res-row">
       <input class="add-res-inp" id="addResInp" placeholder="Add YouTube link or book name…"/>
       <button class="add-res-btn" onclick="addResourceFromSheet()">+ Add</button>
     </div>
-    <div class="res-section">
-      <div class="res-sec-lbl">Your Resources</div>
-      <div id="userResItems">
-        <div class="res-item"><div class="res-item-icon" style="background:rgba(251,191,36,0.12)">📺</div><div class="res-item-body"><div class="res-item-name">Your added resources appear here</div><div class="res-item-meta">Add from AI tab or using the button above</div></div></div>
-      </div>
-    </div>
-    <div class="res-section">
-      <div class="res-sec-lbl">Recommended by Shadow</div>
-      <div class="res-item"><div class="res-item-icon" style="background:rgba(52,211,153,0.12)">⭐</div><div class="res-item-body"><div class="res-item-name">Vedantu – Top Educator</div><div class="res-item-meta">YouTube · Reddit's top pick</div></div><span class="badge badge-r">Reddit ✓</span></div>
-      <div class="res-item"><div class="res-item-icon" style="background:rgba(52,211,153,0.12)">📄</div><div class="res-item-body"><div class="res-item-name">NCERT Solutions</div><div class="res-item-meta">PDF · Free · Official</div></div><span class="badge badge-r">Essential</span></div>
-    </div>
+    <div id="resSheetContent"></div>
   </div>
 </div>
 
@@ -651,21 +644,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 // STATE — persisted via localStorage
 // ═══════════════════════════════
 const STORAGE_KEY = 'shadow_v1';
-const APP_VERSION = '1.3'; // bump this to force reset on breaking changes
 
 function loadState() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    // Version mismatch → clear and start fresh
-    if (raw.version !== APP_VERSION) {
-      localStorage.removeItem(STORAGE_KEY);
-      return {};
-    }
-    return raw;
-  } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
 }
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({...APP, version: APP_VERSION})); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(APP)); } catch(e) {}
 }
 
 // Defaults
@@ -900,16 +884,27 @@ function buildWeekStrip() {
   strip.innerHTML = '';
   const now = new Date();
   const dn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const start = new Date(now); start.setDate(now.getDate()-now.getDay()+1);
-  for(let i=0;i<7;i++){
-    const d = new Date(start); d.setDate(start.getDate()+i);
-    const isToday = d.toDateString()===now.toDateString();
+
+  // Show 7 days: 3 before today, today, 3 after
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    const isToday = i === 0;
     const pill = document.createElement('div');
-    pill.className=`day-pill${isToday?' active':''} has-tasks`;
-    pill.innerHTML=`<span class="day-name">${dn[d.getDay()]}</span><span class="day-num">${d.getDate()}</span><span class="day-dot"></span>`;
-    pill.onclick=()=>{document.querySelectorAll('.day-pill').forEach(p=>p.classList.remove('active'));pill.classList.add('active')};
+    pill.className = `day-pill${isToday ? ' active' : ''} has-tasks`;
+    pill.innerHTML = `
+      <span class="day-name">${dn[d.getDay()]}</span>
+      <span class="day-num">${d.getDate()}</span>
+      <span class="day-dot"></span>`;
+    pill.onclick = () => {
+      document.querySelectorAll('.day-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    };
     strip.appendChild(pill);
-    if(isToday) setTimeout(()=>pill.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'}),100);
+    // scroll today into centre
+    if (isToday) {
+      setTimeout(() => pill.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' }), 100);
+    }
   }
 }
 
@@ -957,111 +952,110 @@ function generateTimetable() {
 }
 
 // ═══════════════════════════════
-// RESOURCE SHEET
+// RESOURCE SHEET — COMING SOON
 // ═══════════════════════════════
+function openLink(url) {
+  if (!url) return;
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
 function openResSheet(subj, ch) {
   document.getElementById('resSheetTitle').textContent = subj;
   document.getElementById('resSheetSub').textContent = ch + ' · Resources';
-  
-  const recContainer = document.querySelector('.res-section:last-child');
-  let recHtml = '<div class="res-sec-lbl">Recommended by Shadow</div>';
-  const s = subj.toLowerCase();
-
-  // 1. SPECIFIC SUBJECT OVERRIDES (Works across all streams)
-  if (s.includes('physical education') || s.includes('pe')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@ZakiSaudagar')">
-        <div class="res-item-icon" style="background:rgba(248,113,113,0.12)">🏃</div>
-        <div class="res-item-body"><div class="res-item-name">Zaki Saudagar</div><div class="res-item-meta">Top choice for PE Board Exams</div></div>
-        <span class="badge badge-r">Certified ✓</span>
-      </div>
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@RajatAroraOfficial')">
-        <div class="res-item-icon" style="background:rgba(251,191,36,0.12)">📖</div>
-        <div class="res-item-body"><div class="res-item-name">Rajat Arora (PE One-Shots)</div><div class="res-item-meta">Perfect for last-minute revision</div></div>
-      </div>`;
-  } 
-  else if (s.includes('computer science') || s.includes('cs') || s.includes('ip')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@AnjaliLuthra')">
-        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">💻</div>
-        <div class="res-item-body"><div class="res-item-name">Anjali Luthra</div><div class="res-item-meta">The gold standard for CS & IP</div></div>
-        <span class="badge badge-r">Elite Pick</span>
-      </div>
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@CodeitUp')">
-        <div class="res-item-icon" style="background:rgba(52,211,153,0.12)">🐍</div>
-        <div class="res-item-body"><div class="res-item-name">CodeitUp (Python/SQL)</div><div class="res-item-meta">Deep-dive for CS coding sections</div></div>
-      </div>`;
-  }
-  else if (s.includes('english')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@ShipraMishra')">
-        <div class="res-item-icon" style="background:rgba(124,92,252,0.12)">✍️</div>
-        <div class="res-item-body"><div class="res-item-name">Shipra Mishra</div><div class="res-item-meta">Best for English Literature & Writing</div></div>
-        <span class="badge badge-r">Verified</span>
-      </div>`;
-  }
-
-  // 2. STREAM-BASED DEFAULTS (Only runs if no specific subject was found above)
-  else if (APP.stream.includes('Science')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@physicswallah/playlists')">
-        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">⚡</div>
-        <div class="res-item-body"><div class="res-item-name">Physics Wallah (Alakh Pandey)</div><div class="res-item-meta">Top choice for PCM/PCB Concepts</div></div>
-        <span class="badge badge-r">Certified ✓</span>
-      </div>`;
-  } 
-  else if (APP.stream.includes('Commerce')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@SunilPanda-TheCommerceGuru')">
-        <div class="res-item-icon" style="background:rgba(79,142,247,0.12)">📊</div>
-        <div class="res-item-body"><div class="res-item-name">Sunil Panda – Commerce Guru</div><div class="res-item-meta">Best for Accounts, Economics & BST</div></div>
-        <span class="badge badge-r">Reddit Verified</span>
-      </div>`;
-  } 
-  else if (APP.stream.includes('Humanities') || APP.stream.includes('Arts')) {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/@MagnetBrainsEducation')">
-        <div class="res-item-icon" style="background:rgba(124,92,252,0.12)">📜</div>
-        <div class="res-item-body"><div class="res-item-name">Magnet Brains</div><div class="res-item-meta">Full NCERT coverage for Humanities</div></div>
-      </div>`;
-  } 
-
-  // 3. UNIVERSAL FALLBACK
-  else {
-    recHtml += `
-      <div class="res-item" onclick="window.open('https://www.youtube.com/results?search_query=class+12+${subj}+one+shot')">
-        <div class="res-item-icon" style="background:rgba(255,255,255,0.05)">🔍</div>
-        <div class="res-item-body"><div class="res-item-name">Search One-Shots</div><div class="res-item-meta">Finding best 2026 videos for ${subj}</div></div>
-      </div>`;
-  }
-
-  recContainer.innerHTML = recHtml;
+  buildResSheetContent(subj, ch);
   document.getElementById('resSheet').classList.add('open');
-  }
-  
-function closeResSheet() { document.getElementById('resSheet').classList.remove('open'); }
-function addResourceFromSheet() {
-  const v = document.getElementById('addResInp').value.trim(); if(!v) return;
-  document.getElementById('addResInp').value = '';
-  APP.resources.push(v); saveState();
-  const isYT = v.includes('youtube')||v.includes('youtu.be');
-  const item = document.createElement('div');
-  item.className = 'res-item';
-  item.innerHTML = `<div class="res-item-icon" style="background:rgba(251,191,36,0.12)">${isYT?'📺':'📖'}</div><div class="res-item-body"><div class="res-item-name">${isYT?'Video Resource':v}</div><div class="res-item-meta">${isYT?'YouTube · Shadow will split across days':'Book · Added'}</div></div><span class="badge badge-u">Yours</span>`;
-  // remove placeholder if present
-  const placeholder = document.getElementById('userResItems').querySelector('.res-item');
-  if (placeholder && placeholder.querySelector('.res-item-name').textContent.includes('appear here')) placeholder.remove();
-  document.getElementById('userResItems').appendChild(item);
-  showToast(isYT ? '📺 Video added! Shadow will split it across sessions 💙' : '📖 Book added to your resources 💙');
 }
+
+function buildResSheetContent(subj, ch) {
+  const el = document.getElementById('resSheetContent');
+  el.innerHTML = '';
+
+  // Coaching centre section (if applicable)
+  if (APP.coachingCentres && APP.coachingCentres.length > 0) {
+    APP.coachingCentres.forEach(function(centre) {
+      const sec = document.createElement('div');
+      sec.className = 'res-section';
+      sec.innerHTML =
+        '<div class="res-sec-lbl" style="color:var(--accent)">🏫 From ' + centre.name + '</div>' +
+        '<div style="background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.7">' +
+        '📚 Coaching resources coming soon<br>Ask your teacher to join Shadow to push their materials here 💙' +
+        '</div>';
+      el.appendChild(sec);
+    });
+  }
+
+  // User added resources
+  const userRes = APP.resources.filter(function(r) {
+    return typeof r === 'object' ? (!r.subj || r.subj === subj) : true;
+  });
+  const userSec = document.createElement('div');
+  userSec.className = 'res-section';
+  const userLbl = document.createElement('div');
+  userLbl.className = 'res-sec-lbl';
+  userLbl.textContent = 'Your Resources';
+  userSec.appendChild(userLbl);
+  if (userRes.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:var(--muted);padding:6px 0 4px';
+    empty.textContent = 'Nothing added yet — paste a link above 💙';
+    userSec.appendChild(empty);
+  } else {
+    userRes.forEach(function(r) {
+      const isYT = typeof r === 'string' ? (r.includes('youtube')||r.includes('youtu.be')) : r.isYT;
+      const url  = (typeof r === 'string' ? r : r.url) || '';
+      const name = typeof r === 'string' ? (isYT ? 'YouTube Video' : r) : r.name;
+      const card = document.createElement('div');
+      card.className = 'res-item';
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', function() { openLink(url); });
+      card.innerHTML =
+        '<div class="res-item-icon" style="background:rgba(251,191,36,0.12)">' + (isYT?'📺':'📖') + '</div>' +
+        '<div class="res-item-body"><div class="res-item-name">' + name + '</div>' +
+        '<div class="res-item-meta">' + (isYT ? 'YouTube · Tap to open' : 'Book') + '</div></div>' +
+        '<span class="badge badge-u">↗</span>';
+      userSec.appendChild(card);
+    });
+  }
+  el.appendChild(userSec);
+
+  // Coming soon section
+  const soon = document.createElement('div');
+  soon.className = 'res-section';
+  soon.innerHTML =
+    '<div class="res-sec-lbl">📚 Curated Resources</div>' +
+    '<div style="background:var(--s2);border:1px dashed rgba(79,142,247,0.3);border-radius:20px;padding:28px 20px;text-align:center;">' +
+    '<div style="font-size:32px;margin-bottom:12px">🚀</div>' +
+    '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">Resources Coming Soon</div>' +
+    '<div style="font-size:13px;color:var(--muted);line-height:1.7">Shadow is building chapter-specific video links<br>that take you directly to the right lecture.<br><br>For now, add your own YouTube links above 💙</div>' +
+    '</div>';
+  el.appendChild(soon);
+}
+
+function closeResSheet() {
+  document.getElementById('resSheet').classList.remove('open');
+}
+
+function addResourceFromSheet() {
+  const v = document.getElementById('addResInp').value.trim();
+  if (!v) return;
+  document.getElementById('addResInp').value = '';
+  const isYT = v.includes('youtube') || v.includes('youtu.be');
+  APP.resources.push({ name: isYT ? 'YouTube Video' : v, url: v, isYT: isYT });
+  saveState();
+  const title = document.getElementById('resSheetTitle').textContent;
+  const ch = document.getElementById('resSheetSub').textContent;
+  buildResSheetContent(title, ch);
+  showToast(isYT ? '📺 Video added! Tap to open anytime 💙' : '📖 Book added 💙');
+}
+
 let touchStart=0;
-document.getElementById('resSheetInner').addEventListener('touchstart',e=>{touchStart=e.touches[0].clientY});
-document.getElementById('resSheetInner').addEventListener('touchend',e=>{if(e.changedTouches[0].clientY-touchStart>80)closeResSheet()});
 
 // ═══════════════════════════════
 // AI CHAT — ONBOARDING + ONGOING
 // ═══════════════════════════════
-const chatArea = document.getElementById('chatArea');
+let chatArea;
 let chatInputHandler = null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -1087,7 +1081,6 @@ function handleChatSend() {
   if (chatInputHandler) { const fn=chatInputHandler; chatInputHandler=null; userSay(val); fn(val); return; }
   if (APP.onboardingDone) { userSay(val); handlePostOnboarding(val); }
 }
-document.getElementById('chatInput').addEventListener('keydown', e => { if(e.key==='Enter') handleChatSend(); });
 
 function waitInput(ph) {
   document.getElementById('chatInput').placeholder = ph||'Type here…';
@@ -1141,7 +1134,6 @@ function defaultSubjects(exam, stream) {
   return[{name:'Subject 1',hard:false},{name:'Subject 2',hard:false}];
 }
 
-// Typical chapter counts per subject
 const CHAPTER_COUNTS = {
   'Physics':15,'Chemistry':16,'Maths':13,'Mathematics':13,'Biology':22,
   'English':8,'Business Studies':6,'Economics':6,'Accountancy':8,
@@ -1152,56 +1144,46 @@ const CHAPTER_COUNTS = {
 async function handlePostOnboarding(msg) {
   const lower = msg.toLowerCase();
   if(lower.includes('youtube')||lower.includes('youtu.be')||lower.includes('http')){
-    APP.resources.push(msg); saveState();
-    await aiSay("Got it! 📺 I've added this video to your resources. If it's long I'll split it across your upcoming sessions automatically 💙",300);
-  } else if(lower.includes('add')&&(lower.includes('book')||lower.includes('pdf')||lower.includes('notes'))){
-    await aiSay("📖 Added to your resources! You'll see it in the 📚 button on your timetable 💙",300);
-  } else if(lower.includes('reschedule')||lower.includes("can't study")||lower.includes('cannot study')||lower.includes("won't study")){
-    APP.tasks = APP.tasks.map(t => ({...t, done:false}));
+    APP.resources.push({name:'YouTube Video',url:msg,isYT:true}); saveState();
+    await aiSay("Got it! 📺 I've added this video to your resources. Tap it anytime from the 📚 button to open it 💙",300);
+  } else if(lower.includes('reschedule')||lower.includes("can't study")||lower.includes('cannot study')){
+    APP.tasks = APP.tasks.map(t => ({...t,done:false})); saveState();
     await aiSay("No problem — I've moved today's tasks to tomorrow. Rest well 💙",300);
   } else if(lower.includes('exam')||lower.includes('date')){
-    await aiSay("Got it! I've noted that. You can update your exact exam date in Settings → Exam Date anytime 📅",300);
+    await aiSay("Got it! Update your exact exam date in Settings → Exam Date anytime 📅",300);
   } else {
-    await aiSay("I'm here! You can paste a YouTube link, tell me to reschedule, or just chat anytime 💙",300);
+    await aiSay("I'm here! Paste a YouTube link, tell me to reschedule, or just chat anytime 💙",300);
   }
 }
 
 async function runOnboarding() {
   try {
   await wait(500);
-
-  // Step 1: Intro
   await aiSay("Hey! 👋 I'm <strong>Shadow</strong> — your personal AI study buddy.");
-  await aiSay("I'll build a smart timetable around your school, coaching, and life — and adjust it every single day. Let's set things up in 2 minutes! 🚀",280);
+  await aiSay("I'll build a smart timetable around your school, coaching, and life — and adjust it every single day. Let's set things up! 🚀",280);
 
-  // Step 2: Exam
   await aiSay("What are you preparing for?",360);
   APP.exam = await chipsEl(['Class 12 CBSE','Class 12 ICSE','Class 11 CBSE','Class 11 ICSE','JEE','NEET','CUET']);
 
-  // Step 3: Stream (Class 11/12 only)
   if(APP.exam.includes('Class')){
     await aiSay(`Great — <strong>${APP.exam}</strong>! Which stream are you in?`,300);
     APP.stream = await chipsEl(['PCM – Science','PCB – Science','Commerce','Arts / Humanities']);
-  } else {
-    APP.stream = APP.exam;
-  }
+  } else { APP.stream = APP.exam; }
 
-  // Step 3b: CUET university targeting — runs AFTER stream is set
   if(APP.exam.includes('CUET')){
     await aiSay("Which university are you targeting? I'll prioritise your subjects accordingly 🎯",320);
     const uni = await chipsEl(['Delhi University (DU)','BHU','JNU','Jamia Millia','Other']);
     APP.cuetUniversity = uni;
     const uniMsgs = {
-      'Delhi University (DU)': "Great choice! For DU I'll weight <strong>Domain Subject</strong> highest, then English — that's what matters most for DU cutoffs 📚",
-      'BHU':          "BHU focuses heavily on <strong>Domain Subject + General Test</strong> equally — I'll balance both in your daily plan 🎯",
-      'JNU':          "JNU values <strong>language proficiency</strong> highly — I'll give English and Domain Subject equal priority 📝",
-      'Jamia Millia': "For Jamia I'll prioritise your <strong>Domain Subject</strong> and make sure General Test gets solid daily time too ⚡",
-      'Other':        "Got it! I'll keep a balanced split across Domain Subject, English and General Test 💙",
+      'Delhi University (DU)':"Great choice! For DU I'll weight <strong>Domain Subject</strong> highest, then English 📚",
+      'BHU':"BHU focuses on <strong>Domain Subject + General Test</strong> equally 🎯",
+      'JNU':"JNU values <strong>language proficiency</strong> — English and Domain get equal priority 📝",
+      'Jamia Millia':"For Jamia I'll prioritise <strong>Domain Subject</strong> and General Test ⚡",
+      'Other':"Got it! Balanced split across all CUET subjects 💙",
     };
-    await aiSay(uniMsgs[uni] || uniMsgs['Other'], 280);
+    await aiSay(uniMsgs[uni]||uniMsgs['Other'], 280);
   }
 
-  // Step 4: School
   await aiSay("Do you attend school?",360);
   const sc = await chipsEl(['Yes, I go to school','No, dropped school']);
   APP.goToSchool = sc.startsWith('Yes');
@@ -1215,7 +1197,6 @@ async function runOnboarding() {
     await aiSay("Got it — those hours are blocked 🏫",240);
   }
 
-  // Step 5: Subjects
   const defaultSubjs = defaultSubjects(APP.exam, APP.stream);
   let subjects = defaultSubjs.map(s => ({...s, chaptersTotal: CHAPTER_COUNTS[s.name]||8, chaptersDone:0, syllabusProgress:0, emoji: SUBJECT_EMOJIS[s.name]||'📚'}));
   await aiSay("Based on your stream, I've added these subjects:",380);
@@ -1235,67 +1216,49 @@ async function runOnboarding() {
     confirmBtn('Done — these are my subjects ✓').then(()=>{ ar.remove(); userSay(subjects.map(s=>s.name).join(', ')); resolve(); });
   });
 
-  // Step 6: Hard subjects
   await aiSay("Which subjects feel <strong>harder</strong>? I'll give them more time 💪",420);
   const hardSubjs = await multiChipsEl(subjects.map(s=>s.name),'Done');
   subjects = subjects.map(s=>({...s, hard: hardSubjs.includes(s.name)}));
   if(hardSubjs.length===0) await aiSay("Love the confidence! 😄 Balanced pace for all.",240);
   else await aiSay(`Got it — <strong>${hardSubjs.join(', ')}</strong> get priority 💙`,240);
 
-  // Step 7: Syllabus progress — KEY NEW STEP
-  await aiSay("Have you <strong>already started studying</strong>? If you've completed some chapters, tell me and Shadow will only schedule what's remaining 📖",460);
-  const syllabusAns = await chipsEl(['Just starting 🆕','Already started — tell me per subject','About halfway done overall','Mostly done — just revision left']);
+  await aiSay("Have you <strong>already started studying</strong>? I'll only schedule remaining chapters 📖",460);
+  const syllabusAns = await chipsEl(['Just starting 🆕','Already started — tell me per subject','About halfway done','Mostly done — just revision']);
 
   if(syllabusAns.includes('per subject')){
-    await aiSay("Let's go subject by subject. Tap how much you've completed for each:",320);
+    await aiSay("Tap how much you've completed for each subject:",320);
     const syllCard = document.createElement('div');
     syllCard.className = 'syllabus-card';
     syllCard.innerHTML = `<div class="syllabus-card-title">📊 How much have you completed?</div>`;
     const selectedProgress = {};
     subjects.forEach(s => {
       selectedProgress[s.name] = 0;
-      const row = document.createElement('div');
-      row.className = 'syllabus-subj-row';
+      const row = document.createElement('div'); row.className = 'syllabus-subj-row';
       row.innerHTML = `<div class="syllabus-subj-name">${s.emoji} ${s.name}</div><div class="syllabus-chips-inline" id="sp_${s.name.replace(/\s/g,'_')}"></div>`;
       syllCard.appendChild(row);
       ['0%','25%','50%','75%','Done'].forEach(pct => {
-        const c = document.createElement('div');
-        c.className = 'syllabus-chip' + (pct==='0%'?' sel':'');
-        c.textContent = pct;
-        c.onclick = () => {
-          row.querySelectorAll('.syllabus-chip').forEach(x=>x.classList.remove('sel'));
-          c.classList.add('sel');
-          const val = pct==='Done'?100:parseInt(pct)||0;
-          selectedProgress[s.name] = val;
-        };
+        const c = document.createElement('div'); c.className = 'syllabus-chip'+(pct==='0%'?' sel':''); c.textContent = pct;
+        c.onclick = () => { row.querySelectorAll('.syllabus-chip').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); selectedProgress[s.name] = pct==='Done'?100:parseInt(pct)||0; };
         row.querySelector('.syllabus-chips-inline').appendChild(c);
       });
     });
     chatArea.appendChild(syllCard); scrollChat();
     await confirmBtn('Confirm my progress ✓');
-    subjects = subjects.map(s => {
-      const pct = selectedProgress[s.name]||0;
-      const done = Math.floor(s.chaptersTotal * pct/100);
-      return {...s, syllabusProgress:pct, chaptersDone:done};
-    });
+    subjects = subjects.map(s => { const pct=selectedProgress[s.name]||0; return {...s, syllabusProgress:pct, chaptersDone:Math.floor(s.chaptersTotal*pct/100)}; });
     syllCard.querySelectorAll('.syllabus-chip').forEach(c=>c.classList.add('done'));
     userSay('Progress updated per subject ✓');
-    await aiSay("Perfect! I've only scheduled your <strong>remaining chapters</strong>. Students who've already started save weeks of time 🎯",300);
-
+    await aiSay("I've only scheduled your <strong>remaining chapters</strong> 🎯",300);
   } else if(syllabusAns.includes('halfway')){
-    subjects = subjects.map(s=>({...s, syllabusProgress:50, chaptersDone: Math.floor(s.chaptersTotal*0.5)}));
-    await aiSay("Got it — I've marked all subjects at 50% and scheduled only the remaining chapters 💙",300);
-  } else if(syllabusAns.includes('Mostly done')){
-    subjects = subjects.map(s=>({...s, syllabusProgress:75, chaptersDone: Math.floor(s.chaptersTotal*0.75)}));
-    await aiSay("Almost there! I'll focus your timetable on revision and practice — you're close 🔥",300);
+    subjects = subjects.map(s=>({...s, syllabusProgress:50, chaptersDone:Math.floor(s.chaptersTotal*0.5)}));
+    await aiSay("Got it — all subjects at 50%, only remaining chapters scheduled 💙",300);
+  } else if(syllabusAns.includes('Mostly')){
+    subjects = subjects.map(s=>({...s, syllabusProgress:75, chaptersDone:Math.floor(s.chaptersTotal*0.75)}));
+    await aiSay("Almost there! Focusing on revision and remaining topics 🔥",300);
   } else {
-    // Just starting — all at 0%
     await aiSay("Fresh start! Let's build your full plan 🚀",240);
   }
-
   APP.subjects = subjects.map((s,i) => ({...s, color: COLORS[i%COLORS.length]}));
 
-  // Step 8: Coaching
   await aiSay("Do you attend any coaching centre?",380);
   const coa = await chipsEl(['Yes','No, self-studying']);
   if(coa==='Yes'){
@@ -1310,7 +1273,6 @@ async function runOnboarding() {
     await aiSay("All coaching times blocked! 🎯",240);
   }
 
-  // Step 9: Exam date
   await aiSay("When is your exam? 📅",380);
   const timeLeft = await chipsEl(['1 month','2 months','3 months','4 months','6 months','Pick exact date 📅']);
   if(timeLeft.includes('Pick')){
@@ -1322,20 +1284,18 @@ async function runOnboarding() {
     else APP.examMonths = 3;
   } else { APP.examMonths = parseInt(timeLeft)||3; }
 
-  // Step 10: Weekend
   await aiSay("What about weekends?",360);
   APP.weekendPref = await chipsEl(['Full day 💪','Half day 😐','Sunday off 🌙']);
 
-  // Step 11: Resources
-  await aiSay("Do you have YouTube videos or books? I'll split long videos across days 📺📖",420);
-  const rw=document.createElement('div');
-  rw.style.cssText='display:flex;flex-direction:column;gap:8px;max-width:88%';
+  await aiSay("Any YouTube videos or books you study from? I'll split long videos across days 📺📖",420);
+  const rw=document.createElement('div'); rw.style.cssText='display:flex;flex-direction:column;gap:8px;max-width:88%';
   rw.innerHTML=`<input class="inline-input" id="rInp" placeholder="Paste link or book name…" style="border-radius:14px;padding:10px 14px"/><div style="display:flex;gap:8px"><button class="inline-btn" id="rAdd">Add</button><button class="inline-btn" id="rSkip" style="background:var(--s2);color:var(--muted);border:1px solid var(--border)">Skip</button></div><div class="res-tags" id="rTags"></div>`;
   chatArea.appendChild(rw); scrollChat();
   await new Promise(resolve=>{
     document.getElementById('rAdd').onclick=()=>{
       const v=document.getElementById('rInp').value.trim(); if(!v)return;
-      APP.resources.push(v); document.getElementById('rInp').value='';
+      APP.resources.push({name:v.includes('youtube')||v.includes('youtu.be')?'YouTube Video':v, url:v, isYT:v.includes('youtube')||v.includes('youtu.be')});
+      document.getElementById('rInp').value='';
       const t=document.createElement('span');t.className='res-tag';
       t.textContent=(v.includes('youtube')||v.includes('youtu.be'))?'📺 Video added':'📖 '+v;
       document.getElementById('rTags').appendChild(t); scrollChat();
@@ -1345,8 +1305,7 @@ async function runOnboarding() {
     confirmBtn('Done adding ✓').then(fin);
   });
 
-  // Step 12: Fatigue
-  await aiSay("Last one — after school and coaching, how do you usually feel? This helps me schedule the right tasks at the right time ⚡",420);
+  await aiSay("Last one — after school and coaching, how do you usually feel? ⚡",420);
   const mw=document.createElement('div'); mw.className='mood-wrap';
   const fatMoods=[{e:'💪',l:'Still energetic',v:'energetic'},{e:'😐',l:'Moderate',v:'moderate'},{e:'😴',l:'Pretty tired',v:'tired'},{e:'💀',l:'Exhausted',v:'exhausted'}];
   await new Promise(resolve=>{
@@ -1361,36 +1320,22 @@ async function runOnboarding() {
   const fResp={energetic:"Amazing! 💪 Hard subjects in the evening too — you can handle it.",moderate:"Normal is great 😊 Hard stuff in fresh hours, lighter tasks later.",tired:"Totally understandable 💙 Light revision only after coaching. Heavy topics in morning slots.",exhausted:"Rest is part of the plan 🌙 One task after coaching, everything else in morning."};
   await aiSay(fResp[APP.fatigue]||"Got it!",280);
 
-  // Free time calculation
-  let schoolHrs = 0;
-  if(APP.goToSchool && APP.schoolStart && APP.schoolEnd){
-    const sh=APP.schoolStart.replace(/[APM]/g,'').trim(), eh=APP.schoolEnd.replace(/[APM]/g,'').trim();
-    schoolHrs = 6; // approximate
-  } else if(APP.goToSchool){ schoolHrs=6; }
-  const wdFree = Math.max(2, 14 - schoolHrs - (APP.coachingCentres.length>0?2:0));
-  const weFree = APP.weekendPref.includes('Full')?10:APP.weekendPref.includes('Half')?5:5;
+  const wdFree = Math.max(2, 14 - (APP.goToSchool?6:0) - (APP.coachingCentres.length>0?2:0));
+  const weFree = APP.weekendPref.includes('Full')?10:5;
   await aiSay("Here's your free time every day:",460);
   const ftCard=document.createElement('div'); ftCard.className='freetime-card';
   ftCard.innerHTML=`<div class="freetime-title">⏰ Your Free Study Windows</div><div class="freetime-row"><span class="freetime-day">Weekdays</span><span class="freetime-hours">~${wdFree} hrs free</span></div><div class="freetime-row"><span class="freetime-day">Weekends</span><span class="freetime-hours">~${weFree} hrs free</span></div><div class="freetime-row"><span class="freetime-day">Weekly total</span><span class="freetime-hours">~${wdFree*5+weFree*2} hrs</span></div>`;
   chatArea.appendChild(ftCard); scrollChat();
 
-  // Generate timeline
   await wait(400); await aiSay("Building your personalised plan... ✨",360); await wait(1200);
   const tl = buildTimeline(); chatArea.appendChild(tl); scrollChat();
-
   await wait(400);
-
-  // check if anyone has completed subjects
   const fullDone = APP.subjects.filter(s=>s.chaptersDone>=s.chaptersTotal);
-  if(fullDone.length>0){
-    await aiSay(`I see you've already completed <strong>${fullDone.map(s=>s.name).join(', ')}</strong> — those are off your timetable. Only remaining subjects are scheduled 🎯`,320);
-  }
-
-  await aiSay(`Your syllabus will be done <strong>${APP.examMonths*4-2} days before your exam</strong> — that's your revision buffer 📖`,300);
-  await aiSay("Every day Shadow checks how you're feeling and adjusts your plan. Miss something? I'll quietly move it to tomorrow. No stress, no guilt 💙",340);
+  if(fullDone.length>0) await aiSay(`<strong>${fullDone.map(s=>s.name).join(', ')}</strong> already completed — removed from timetable 🎯`,300);
+  await aiSay(`Syllabus done <strong>${APP.examMonths*4-2} days before your exam</strong> — revision buffer included 📖`,300);
+  await aiSay("Every day Shadow checks how you're feeling and adjusts your plan. Miss something? I'll quietly move it to tomorrow. No stress 💙",340);
   await aiSay("You're all set! 🎉 Head to <strong>Today</strong> to see your plan. Let's do this 🔥",300);
 
-  // Mark done and generate timetable
   APP.onboardingDone = true;
   generateTimetable();
   updateSettingsProfile();
@@ -1399,7 +1344,7 @@ async function runOnboarding() {
 
   } catch(err) {
     console.error('Shadow onboarding error:', err);
-    addBubble('ai', "Hmm, something went wrong 😅 Let me try again — tap <strong>Reset & Redo Onboarding</strong> in Settings if this keeps happening 💙");
+    addBubble('ai', "Something went wrong 😅 Tap <strong>Reset & Redo Onboarding</strong> in Settings if this keeps happening 💙");
   }
 }
 
@@ -1419,22 +1364,20 @@ async function addCoachingCard(idx) {
 }
 
 function buildTimeline() {
-  const now=new Date();
-  const card=document.createElement('div'); card.className='summary-card';
+  const now=new Date(); const card=document.createElement('div'); card.className='summary-card';
   let html=`<div class="sum-title">📊 Your Subject Completion Timeline</div>`;
   APP.subjects.forEach((s,i)=>{
     const remaining = s.chaptersTotal - s.chaptersDone;
-    if(remaining<=0){ html+=`<div class="s-row"><div><div class="s-subj">${s.emoji} ${s.name}</div><div class="s-diff">✅ Already completed!</div></div><div class="s-date" style="color:var(--success)">Done ✓</div></div>`; return; }
+    if(remaining<=0){ html+=`<div class="s-row"><div><div class="s-subj">${s.emoji||'📚'} ${s.name}</div><div class="s-diff">✅ Already completed!</div></div><div class="s-date" style="color:var(--success)">Done ✓</div></div>`; return; }
     const ratio=s.hard?0.75:Math.min(0.4+(i*0.07),0.72);
-    const adjustedRatio = ratio * (remaining/s.chaptersTotal);
+    const adjustedRatio=ratio*(remaining/s.chaptersTotal);
     const days=Math.max(7,Math.round(APP.examMonths*30*adjustedRatio));
     const d=new Date(now); d.setDate(d.getDate()+days);
     const ds=d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-    html+=`<div class="s-row"><div><div class="s-subj">${s.emoji} ${s.name}</div><div class="s-diff">${s.hard?'😓 Hard — prioritised':'✅ Balanced pace'}${s.chaptersDone>0?' · '+s.chaptersDone+' ch done':''}</div></div><div class="s-date">By ${ds}</div></div>`;
+    html+=`<div class="s-row"><div><div class="s-subj">${s.emoji||'📚'} ${s.name}</div><div class="s-diff">${s.hard?'😓 Hard — prioritised':'✅ Balanced pace'}${s.chaptersDone>0?' · '+s.chaptersDone+' ch done':''}</div></div><div class="s-date">By ${ds}</div></div>`;
   });
-  const ex=new Date(now); ex.setMonth(ex.getMonth()+APP.examMonths);
-  const exs=APP.examDateStr?new Date(APP.examDateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):ex.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
-  html+=`<div class="finish-line">🎯 Exam: <span>${exs}</span><br>Syllabus done <span>${APP.examMonths*4-2} days before</span> — revision buffer included ✓</div>`;
+  const exs=APP.examDateStr?new Date(APP.examDateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):(()=>{const ex=new Date(now);ex.setMonth(ex.getMonth()+APP.examMonths);return ex.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});})();
+  html+=`<div class="finish-line">🎯 Exam: <span>${exs}</span><br>Syllabus done <span>${APP.examMonths*4-2} days before</span> — revision buffer ✓</div>`;
   card.innerHTML=html; return card;
 }
 
@@ -1442,43 +1385,33 @@ function buildTimeline() {
 // SETTINGS
 // ═══════════════════════════════
 function updateSettingsProfile() {
-  const name = 'Student';
-  document.getElementById('sAvatar').textContent = name[0].toUpperCase();
-  document.getElementById('sName').textContent = name;
-  document.getElementById('svName').textContent = name;
+  document.getElementById('sAvatar').textContent = 'S';
+  document.getElementById('sName').textContent = 'Student';
   document.getElementById('sExamSub').textContent = APP.exam + (APP.stream&&APP.stream!==APP.exam?' · '+APP.stream:'');
-  document.getElementById('svExam').textContent = APP.exam;
+  document.getElementById('svExam').textContent = APP.exam||'—';
+  document.getElementById('svName').textContent = 'Student';
   if(APP.examMonths){
     const ex=new Date(); ex.setMonth(ex.getMonth()+APP.examMonths);
-    const exs=APP.examDateStr?APP.examDateStr:ex.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+    const exs=APP.examDateStr||ex.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
     document.getElementById('svDate').textContent = exs+' · '+APP.examMonths*30+' days';
   }
   document.getElementById('svSchool').textContent = APP.goToSchool?(APP.schoolStart+' – '+APP.schoolEnd):'Not attending';
-  // tags
   const tags=document.getElementById('pTags'); tags.innerHTML='';
   if(APP.examMonths) tags.innerHTML+=`<div class="p-tag">📅 ${APP.examMonths*30} days to exam</div>`;
-  if(APP.goToSchool) tags.innerHTML+=`<div class="p-tag">🏫 School: ${APP.schoolStart||'8AM'}–${APP.schoolEnd||'2PM'}</div>`;
-  APP.coachingCentres.forEach(c=>tags.innerHTML+=`<div class="p-tag">📚 ${c.name} · ${c.timing}</div>`);
+  if(APP.goToSchool) tags.innerHTML+=`<div class="p-tag">🏫 ${APP.schoolStart||'8AM'}–${APP.schoolEnd||'2PM'}</div>`;
+  APP.coachingCentres.forEach(c=>tags.innerHTML+=`<div class="p-tag">📚 ${c.name}</div>`);
 }
 
 let settingsBuilt = false;
 function buildSettingsProgress() {
   updateSettingsProfile();
   if(settingsBuilt) return; settingsBuilt=true;
-
-  // subject progress bars
   const card=document.getElementById('subjProgressCard'); card.innerHTML='';
   if(APP.subjects.length===0){ card.innerHTML='<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">Complete onboarding to see progress</div>'; return; }
-
-  const sColors={
-    track:{fill:'linear-gradient(90deg,#34d399,#10b981)',cls:'st-on',lbl:'On Track ✅'},
-    behind:{fill:'linear-gradient(90deg,#fbbf24,#f59e0b)',cls:'st-beh',lbl:'Behind ⚠️'},
-    danger:{fill:'linear-gradient(90deg,#f87171,#ef4444)',cls:'st-dan',lbl:'At Risk 🚨'},
-  };
-
-  let totalChapsDone=0, totalChaps=0;
+  const sColors={track:{fill:'linear-gradient(90deg,#34d399,#10b981)',cls:'st-on',lbl:'On Track ✅'},behind:{fill:'linear-gradient(90deg,#fbbf24,#f59e0b)',cls:'st-beh',lbl:'Behind ⚠️'},danger:{fill:'linear-gradient(90deg,#f87171,#ef4444)',cls:'st-dan',lbl:'At Risk 🚨'}};
+  let totalDone=0, totalChaps=0;
   APP.subjects.forEach((s,i)=>{
-    totalChapsDone+=s.chaptersDone; totalChaps+=s.chaptersTotal;
+    totalDone+=s.chaptersDone; totalChaps+=s.chaptersTotal;
     const pct=s.chaptersTotal>0?Math.round(s.chaptersDone/s.chaptersTotal*100):0;
     const status=pct>=60?'track':pct>=30?'behind':'danger';
     const sc=sColors[status];
@@ -1487,22 +1420,15 @@ function buildSettingsProgress() {
     card.appendChild(row);
     setTimeout(()=>{ const el=document.getElementById('spf'+i); if(el)el.style.width=pct+'%'; },400+i*100);
   });
-
-  // overall ring
-  const ovPct=totalChaps>0?Math.round(totalChapsDone/totalChaps*100):0;
-  const circ=214;
+  const ovPct=totalChaps>0?Math.round(totalDone/totalChaps*100):0;
   setTimeout(()=>{
-    document.getElementById('ovRing').style.strokeDashoffset=circ-(circ*ovPct/100);
+    document.getElementById('ovRing').style.strokeDashoffset=214-(214*ovPct/100);
     document.getElementById('ovPct').textContent=ovPct+'%';
-    document.querySelector('.ov-val.ov-val-chap')?.remove();
-    document.getElementById('ovChapRow').innerHTML=`<span class="ov-key">Chapters done</span><span class="ov-val">${totalChapsDone} / ${totalChaps}</span>`;
+    document.getElementById('ovChapRow').innerHTML=`<span class="ov-key">Chapters done</span><span class="ov-val">${totalDone} / ${totalChaps}</span>`;
   },400);
-
-  // projected finish
   if(APP.subjects.length>0&&APP.examMonths>0){
     document.getElementById('projCard').style.display='block';
-    const ex=APP.examDateStr?new Date(APP.examDateStr):new Date(Date.now()+APP.examMonths*30*24*60*60*1000);
-    document.getElementById('projBadge').textContent='✅ On Track — Finishing by '+(ex.getMonth()-1>0?ex.toLocaleDateString('en-IN',{day:'numeric',month:'long'}):APP.examMonths+'  months');
+    document.getElementById('projBadge').textContent='✅ On Track — Finishing '+(APP.examMonths*4-2)+' days before exam';
     document.getElementById('projDetail').innerHTML=`That's <strong style="color:var(--success)">${APP.examMonths*4-2} days before your exam</strong> — perfect revision buffer 📖`;
   }
 }
@@ -1511,11 +1437,7 @@ let editType='';
 function openEdit(type) {
   editType=type;
   const titles={name:'Edit Your Name',exam:'Edit Exam',date:'Edit Exam Date'};
-  const bodies={
-    name:`<input class="edit-inp" id="ei0" placeholder="Your name" value="Student"/>`,
-    exam:`<input class="edit-inp" id="ei0" placeholder="e.g. Class 12 CBSE" value="${APP.exam||''}"/>`,
-    date:`<input class="edit-inp" id="ei0" type="date" value="${APP.examDateStr||''}"/>`,
-  };
+  const bodies={name:`<input class="edit-inp" id="ei0" placeholder="Your name" value="Student"/>`,exam:`<input class="edit-inp" id="ei0" placeholder="e.g. Class 12 CBSE" value="${APP.exam||''}"/>`,date:`<input class="edit-inp" id="ei0" type="date" value="${APP.examDateStr||''}"/>`};
   document.getElementById('editTitle').textContent=titles[type]||'Edit';
   document.getElementById('editBody').innerHTML=bodies[type]||'';
   document.getElementById('editOverlay').classList.add('open');
@@ -1527,7 +1449,21 @@ function saveEdit(){
   saveState(); updateSettingsProfile(); closeEdit();
 }
 function closeEdit(){ document.getElementById('editOverlay').classList.remove('open'); }
-function resetApp(){ localStorage.removeItem(STORAGE_KEY); location.reload(); }
+let resetTapCount = 0;
+function resetApp() {
+  resetTapCount++;
+  if (resetTapCount === 1) {
+    showToast("Tap again to confirm reset — all your data will be cleared ⚠️");
+    setTimeout(() => { resetTapCount = 0; }, 3000);
+  } else {
+    resetTapCount = 0;
+    try {
+      localStorage.clear(); // clear everything not just shadow_v1
+    } catch(e) {}
+    showToast("Resetting Shadow... 🔄");
+    setTimeout(() => location.reload(), 800);
+  }
+}
 
 // ═══════════════════════════════
 // TIMER
@@ -1548,50 +1484,291 @@ function setTimerMode(m){
   document.getElementById('timerLabel').textContent='READY';
   document.getElementById('timerStartBtn').textContent='START';
 }
-function setPomoLen(min,el){if(timerRunning)return;pomoLen=min;pomoMs=0;document.querySelectorAll('.pomo-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderPomo()}
-function pomoTotalMs(){return(pomoPhase==='study'?pomoLen:pomoPhase==='shortbreak'?5:15)*60*1000}
-function setRing(p,s){const o=CIRC-CIRC*Math.min(p,1);document.getElementById('timerRing').style.strokeDashoffset=o;document.getElementById('timerGlow').style.strokeDashoffset=o;document.getElementById('timerRing').setAttribute('stroke',s);document.getElementById('timerGlow').setAttribute('stroke',s)}
-function renderSW(){const m=Math.floor(swMs/60000),s=Math.floor((swMs%60000)/1000),cs=Math.floor((swMs%1000)/10);document.getElementById('timerDisplay').childNodes[0].textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;document.getElementById('timerMs').textContent=`.${String(cs).padStart(2,'0')}`;setRing((s%60)/60,'url(#rg1)')}
-function renderPomo(){const rem=Math.max(pomoTotalMs()-pomoMs,0),m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);document.getElementById('timerDisplay').childNodes[0].textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;const isB=pomoPhase!=='study';setRing(pomoMs/pomoTotalMs(),isB?'url(#rg2)':'url(#rg1)');const ph=document.getElementById('timerPhase');ph.className=`ring-phase ${isB?'brk':'study'}`;ph.textContent=pomoPhase==='study'?'🔴 Study Session':pomoPhase==='shortbreak'?'🟢 Short Break – 5 min':'🟢 Long Break – 15 min'}
-function updateRounds(){for(let i=0;i<4;i++){const d=document.getElementById('rd'+i);if(d)d.className='round-dot'+(i<pomoRound?' done':i===pomoRound?' current':'')};}
-function nextPomoPhase(){pomoMs=0;if(pomoPhase==='study'){pomosDoneCount++;APP.timerSessions++;APP.timerTotalMs+=pomoLen*60000;saveState();updateTimerStats();if((pomoRound+1)%4===0){pomoPhase='longbreak';pomoRound=0;showToast("4 sessions done! Take a well-earned 15 min break 🎉")}else{pomoPhase='shortbreak';pomoRound++;showToast("Great session! Take a 5 min break ⚡")}}else{pomoPhase='study';showToast("Break's over! Ready for round "+(pomoRound+1)+"? 🔥")}renderPomo();updateRounds();document.getElementById('timerLabel').textContent=pomoPhase==='study'?'STUDY':'BREAK'}
+function setPomoLen(min,el){if(timerRunning)return;pomoLen=min;pomoMs=0;document.querySelectorAll('.pomo-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderPomo();}
+function pomoTotalMs(){return(pomoPhase==='study'?pomoLen:pomoPhase==='shortbreak'?5:15)*60*1000;}
+function setRing(p,s){const o=CIRC-CIRC*Math.min(p,1);document.getElementById('timerRing').style.strokeDashoffset=o;document.getElementById('timerGlow').style.strokeDashoffset=o;document.getElementById('timerRing').setAttribute('stroke',s);document.getElementById('timerGlow').setAttribute('stroke',s);}
+function renderSW(){const m=Math.floor(swMs/60000),s=Math.floor((swMs%60000)/1000),cs=Math.floor((swMs%1000)/10);document.getElementById('timerDisplay').childNodes[0].textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;document.getElementById('timerMs').textContent=`.${String(cs).padStart(2,'0')}`;setRing((s%60)/60,'url(#rg1)');}
+function renderPomo(){const rem=Math.max(pomoTotalMs()-pomoMs,0),m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);document.getElementById('timerDisplay').childNodes[0].textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;const isB=pomoPhase!=='study';setRing(pomoMs/pomoTotalMs(),isB?'url(#rg2)':'url(#rg1)');const ph=document.getElementById('timerPhase');ph.className=`ring-phase ${isB?'brk':'study'}`;ph.textContent=pomoPhase==='study'?'🔴 Study Session':pomoPhase==='shortbreak'?'🟢 Short Break – 5 min':'🟢 Long Break – 15 min';}
+function updateRounds(){for(let i=0;i<4;i++){const d=document.getElementById('rd'+i);if(d)d.className='round-dot'+(i<pomoRound?' done':i===pomoRound?' current':'');}}
+function nextPomoPhase(){pomoMs=0;if(pomoPhase==='study'){pomosDoneCount++;APP.timerSessions++;APP.timerTotalMs+=pomoLen*60000;saveState();updateTimerStats();if((pomoRound+1)%4===0){pomoPhase='longbreak';pomoRound=0;showToast("4 sessions done! Take a 15 min break 🎉");}else{pomoPhase='shortbreak';pomoRound++;showToast("Great session! Take a 5 min break ⚡");}}else{pomoPhase='study';showToast("Break's over! Ready for round "+(pomoRound+1)+"? 🔥");}renderPomo();updateRounds();document.getElementById('timerLabel').textContent=pomoPhase==='study'?'STUDY':'BREAK';}
 function handleTimerStart(){
-  if(timerRunning){clearInterval(timerInterval);timerRunning=false;document.getElementById('timerStartBtn').textContent='RESUME';document.getElementById('timerLabel').textContent='PAUSED';if(timerMode==='stopwatch'){APP.timerSessions++;APP.timerTotalMs+=swMs;saveState();updateTimerStats()}}
-  else{timerRunning=true;document.getElementById('timerStartBtn').textContent='PAUSE';document.getElementById('timerLabel').textContent=timerMode==='stopwatch'?'RUNNING':(pomoPhase==='study'?'STUDY':'BREAK');if(timerMode==='stopwatch'){const st=Date.now()-swMs;timerInterval=setInterval(()=>{swMs=Date.now()-st;renderSW()},50)}else{const st=Date.now()-pomoMs;timerInterval=setInterval(()=>{pomoMs=Date.now()-st;if(pomoMs>=pomoTotalMs()){clearInterval(timerInterval);timerRunning=false;document.getElementById('timerStartBtn').textContent='START';nextPomoPhase()}else renderPomo()},250)}}
+  if(timerRunning){clearInterval(timerInterval);timerRunning=false;document.getElementById('timerStartBtn').textContent='RESUME';document.getElementById('timerLabel').textContent='PAUSED';if(timerMode==='stopwatch'){APP.timerSessions++;APP.timerTotalMs+=swMs;saveState();updateTimerStats();}}
+  else{timerRunning=true;document.getElementById('timerStartBtn').textContent='PAUSE';document.getElementById('timerLabel').textContent=timerMode==='stopwatch'?'RUNNING':(pomoPhase==='study'?'STUDY':'BREAK');if(timerMode==='stopwatch'){const st=Date.now()-swMs;timerInterval=setInterval(()=>{swMs=Date.now()-st;renderSW();},50);}else{const st=Date.now()-pomoMs;timerInterval=setInterval(()=>{pomoMs=Date.now()-st;if(pomoMs>=pomoTotalMs()){clearInterval(timerInterval);timerRunning=false;document.getElementById('timerStartBtn').textContent='START';nextPomoPhase();}else renderPomo();},250);}}
 }
-function handleTimerReset(){clearInterval(timerInterval);timerRunning=false;swMs=0;pomoMs=0;pomoPhase='study';pomoRound=0;document.getElementById('timerStartBtn').textContent='START';document.getElementById('timerLabel').textContent='READY';setRing(0,'url(#rg1)');if(timerMode==='stopwatch'){document.getElementById('timerDisplay').childNodes[0].textContent='00:00';document.getElementById('timerMs').textContent='.00'}else{renderPomo();updateRounds()}}
-function updateTimerStats(){const m=Math.floor(APP.timerTotalMs/60000);document.getElementById('stToday').textContent=`${Math.floor(m/60)}h ${m%60}m`;document.getElementById('stSess').textContent=APP.timerSessions;document.getElementById('stPomos').textContent=pomosDoneCount}
+function handleTimerReset(){clearInterval(timerInterval);timerRunning=false;swMs=0;pomoMs=0;pomoPhase='study';pomoRound=0;document.getElementById('timerStartBtn').textContent='START';document.getElementById('timerLabel').textContent='READY';setRing(0,'url(#rg1)');if(timerMode==='stopwatch'){document.getElementById('timerDisplay').childNodes[0].textContent='00:00';document.getElementById('timerMs').textContent='.00';}else{renderPomo();updateRounds();}}
+function updateTimerStats(){const m=Math.floor(APP.timerTotalMs/60000);document.getElementById('stToday').textContent=`${Math.floor(m/60)}h ${m%60}m`;document.getElementById('stSess').textContent=APP.timerSessions;document.getElementById('stPomos').textContent=pomosDoneCount;}
+
 
 // ═══════════════════════════════
-// MUSIC
+// MUSIC — PROPER WEB AUDIO
 // ═══════════════════════════════
 const tracks=[
-  {name:'Rain Sound',desc:'Gentle rainfall · Lofi',emoji:'🌧️',bg:'rgba(79,142,247,0.12)',tag:'Focus',tc:'tag-focus'},
-  {name:'White Noise',desc:'Pure static · Deep concentration',emoji:'🤍',bg:'rgba(124,92,252,0.12)',tag:'Deep',tc:'tag-deep'},
-  {name:'Binary Rain',desc:'Lo-fi electronic · Coder vibes',emoji:'💻',bg:'rgba(52,211,153,0.12)',tag:'Energy',tc:'tag-energy'},
-  {name:'Café Ambience',desc:'Coffee shop chatter · Warm',emoji:'☕',bg:'rgba(251,191,36,0.12)',tag:'Calm',tc:'tag-calm'},
-  {name:'Forest Birds',desc:'Nature sounds · Calming',emoji:'🌲',bg:'rgba(52,211,153,0.12)',tag:'Calm',tc:'tag-calm'},
-  {name:'Ocean Waves',desc:'Steady waves · Stress relief',emoji:'🌊',bg:'rgba(79,142,247,0.12)',tag:'Calm',tc:'tag-calm'},
-  {name:'Thunderstorm',desc:'Heavy rain + thunder · Intense',emoji:'⛈️',bg:'rgba(124,92,252,0.12)',tag:'Focus',tc:'tag-focus'},
-  {name:'Library Silence',desc:'Ambient quiet · Pure focus',emoji:'📚',bg:'rgba(79,142,247,0.12)',tag:'Deep',tc:'tag-deep'},
-  {name:'Fire Crackling',desc:'Cozy fireplace · Winter study',emoji:'🔥',bg:'rgba(251,191,36,0.12)',tag:'Calm',tc:'tag-calm'},
-  {name:'Lo-fi Beats',desc:'Chill hip-hop · Study vibes',emoji:'🎵',bg:'rgba(124,92,252,0.12)',tag:'Energy',tc:'tag-energy'},
+  {name:'Rain Sound',      desc:'Gentle rainfall · Lofi focus',      emoji:'🌧️', bg:'rgba(79,142,247,0.12)',  tag:'Focus',  tc:'tag-focus'},
+  {name:'White Noise',     desc:'Pure static · Deep concentration',  emoji:'🤍', bg:'rgba(124,92,252,0.12)', tag:'Deep',   tc:'tag-deep'},
+  {name:'Brown Noise',     desc:'Deep rumble · Stress relief',       emoji:'🟤', bg:'rgba(124,92,252,0.12)', tag:'Deep',   tc:'tag-deep'},
+  {name:'Café Ambience',   desc:'Coffee shop warmth · Motivated',    emoji:'☕', bg:'rgba(251,191,36,0.12)', tag:'Calm',   tc:'tag-calm'},
+  {name:'Ocean Waves',     desc:'Slow waves · Anxiety relief',       emoji:'🌊', bg:'rgba(79,142,247,0.12)',  tag:'Calm',   tc:'tag-calm'},
+  {name:'Forest Birds',    desc:'Nature sounds · Peaceful',          emoji:'🌲', bg:'rgba(52,211,153,0.12)',  tag:'Calm',   tc:'tag-calm'},
+  {name:'Thunderstorm',    desc:'Heavy rain + thunder · Intense',    emoji:'⛈️', bg:'rgba(124,92,252,0.12)', tag:'Focus',  tc:'tag-focus'},
+  {name:'Library Silence', desc:'Ambient quiet · Pure focus',        emoji:'📚', bg:'rgba(79,142,247,0.12)',  tag:'Deep',   tc:'tag-deep'},
+  {name:'Fire Crackling',  desc:'Cozy fireplace · Winter study',     emoji:'🔥', bg:'rgba(251,191,36,0.12)', tag:'Calm',   tc:'tag-calm'},
+  {name:'Lo-fi Beats',     desc:'Chill hip-hop · Study vibes',       emoji:'🎵', bg:'rgba(124,92,252,0.12)', tag:'Energy', tc:'tag-energy'},
 ];
-let curTrack=0,isPlaying=false,musicVol=70,progInterval=null,progSecs=0,audioCtx=null,gainNode=null,oscillators=[];
-function buildTrackList(){const list=document.getElementById('trackList');list.innerHTML='';tracks.forEach((t,i)=>{const card=document.createElement('div');card.className=`track-card${i===0?' active':''}`;card.style.animationDelay=(i*35)+'ms';card.innerHTML=`<div class="track-icon" style="background:${t.bg}">${t.emoji}</div><div class="track-info"><div class="track-name">${t.name}</div><div class="track-desc">${t.desc}</div></div><span class="track-tag ${t.tc}">${t.tag}</span>`;card.onclick=()=>selectTrack(i);list.appendChild(card)});}
-function selectTrack(idx){curTrack=idx;const t=tracks[idx];document.getElementById('npIcon').textContent=t.emoji;document.getElementById('npIcon').style.background=t.bg;document.getElementById('npName').textContent=t.name;document.getElementById('npDesc').textContent=t.desc;document.querySelectorAll('.track-card').forEach((c,i)=>c.classList.toggle('active',i===idx));progSecs=0;document.getElementById('npProgFill').style.width='0%';document.getElementById('npCurrent').textContent='0:00';if(isPlaying)playAmbient(idx);}
-function getACtx(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();gainNode=audioCtx.createGain();gainNode.gain.value=musicVol/100*0.08;gainNode.connect(audioCtx.destination);}return audioCtx;}
-function stopAudio(){oscillators.forEach(o=>{try{o.stop()}catch(e){}});oscillators=[];}
-function playAmbient(idx){stopAudio();const ctx=getACtx();gainNode.gain.value=musicVol/100*0.08;const cfgs=[[{type:'sawtooth',freq:80,g:0.3},{type:'sine',freq:200,g:0.15}],[{type:'sawtooth',freq:60,g:0.4},{type:'sawtooth',freq:180,g:0.2}],[{type:'square',freq:220,g:0.2},{type:'sine',freq:110,g:0.3}],[{type:'sine',freq:130,g:0.2},{type:'sine',freq:196,g:0.15}],[{type:'sine',freq:440,g:0.1},{type:'sine',freq:660,g:0.08}],[{type:'sawtooth',freq:55,g:0.35},{type:'sine',freq:110,g:0.2}],[{type:'sawtooth',freq:40,g:0.5}],[{type:'sine',freq:60,g:0.04}],[{type:'sawtooth',freq:100,g:0.25}],[{type:'triangle',freq:262,g:0.2},{type:'triangle',freq:330,g:0.15}]];const cfg=cfgs[idx]||cfgs[0];cfg.forEach(c=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=c.type;o.frequency.value=c.freq;g.gain.value=c.g*(musicVol/100)*0.12;o.connect(g);g.connect(ctx.destination);o.start();oscillators.push(o)});}
-function togglePlay(){isPlaying=!isPlaying;document.getElementById('playBtn').textContent=isPlaying?'⏸':'▶';document.querySelectorAll('.wave-bar').forEach(b=>b.classList.toggle('playing',isPlaying));if(isPlaying){playAmbient(curTrack);clearInterval(progInterval);progInterval=setInterval(()=>{progSecs++;const m=Math.floor(progSecs/60),s=progSecs%60;document.getElementById('npCurrent').textContent=`${m}:${String(s).padStart(2,'0')}`;document.getElementById('npProgFill').style.width=((progSecs%60)/60*100)+'%'},1000);}else{stopAudio();clearInterval(progInterval);}}
-function prevTrack(){selectTrack((curTrack-1+tracks.length)%tracks.length);}
-function nextTrack(){selectTrack((curTrack+1)%tracks.length);}
-function updateVol(s){musicVol=parseInt(s.value);s.style.background=`linear-gradient(90deg,var(--accent) ${musicVol}%,var(--s3) ${musicVol}%)`;if(gainNode)gainNode.gain.value=musicVol/100*0.08;}
+
+let curTrack=0, isPlaying=false, musicVol=70;
+let progInterval=null, progSecs=0;
+let audioCtx=null, masterGain=null;
+let activeNodes=[];
+
+function getACtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = musicVol / 100;
+    masterGain.connect(audioCtx.destination);
+  }
+  return audioCtx;
+}
+
+function stopAllAudio() {
+  activeNodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch(e){} });
+  activeNodes = [];
+}
+
+// Create proper noise buffer
+function createNoiseBuffer(ctx, type='white') {
+  const bufferSize = ctx.sampleRate * 4; // 4 second loop
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  if (type === 'white') {
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  } else if (type === 'brown') {
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5;
+    }
+  } else if (type === 'pink') {
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < bufferSize; i++) {
+      const w = Math.random() * 2 - 1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      data[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+      b6=w*0.115926;
+    }
+  }
+  return buffer;
+}
+
+function playNoiseSource(ctx, buffer, gain=1, loopable=true) {
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = loopable;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  source.connect(g);
+  g.connect(masterGain);
+  source.start();
+  activeNodes.push(source, g);
+  return { source, gain: g };
+}
+
+function playAmbient(idx) {
+  stopAllAudio();
+  const ctx = getACtx();
+  masterGain.gain.value = musicVol / 100 * 0.8;
+
+  switch(idx) {
+    case 0: { // Rain — pink noise + low pass filter
+      const buf = createNoiseBuffer(ctx, 'pink');
+      const { source } = playNoiseSource(ctx, buf, 0.7);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass'; filter.frequency.value = 1200; filter.Q.value = 0.5;
+      source.disconnect(); source.connect(filter); filter.connect(masterGain);
+      activeNodes.push(filter);
+      // add subtle LFO for rain variation
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.frequency.value = 0.08; lfoGain.gain.value = 150;
+      lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+      lfo.start(); activeNodes.push(lfo, lfoGain);
+      break;
+    }
+    case 1: { // White noise — pure
+      const buf = createNoiseBuffer(ctx, 'white');
+      playNoiseSource(ctx, buf, 0.35);
+      break;
+    }
+    case 2: { // Brown noise — deep
+      const buf = createNoiseBuffer(ctx, 'brown');
+      playNoiseSource(ctx, buf, 0.8);
+      break;
+    }
+    case 3: { // Café — brown noise + mid bandpass
+      const buf = createNoiseBuffer(ctx, 'brown');
+      const { source } = playNoiseSource(ctx, buf, 0.3);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass'; filter.frequency.value = 800; filter.Q.value = 0.8;
+      source.disconnect(); source.connect(filter); filter.connect(masterGain);
+      activeNodes.push(filter);
+      // subtle chatter simulation with second layer
+      const buf2 = createNoiseBuffer(ctx, 'pink');
+      const { source: s2 } = playNoiseSource(ctx, buf2, 0.15);
+      const f2 = ctx.createBiquadFilter();
+      f2.type = 'bandpass'; f2.frequency.value = 2000; f2.Q.value = 2;
+      s2.disconnect(); s2.connect(f2); f2.connect(masterGain);
+      activeNodes.push(f2);
+      break;
+    }
+    case 4: { // Ocean — brown noise + very slow LFO tremolo
+      const buf = createNoiseBuffer(ctx, 'brown');
+      const g = ctx.createGain(); g.gain.value = 0;
+      const source = ctx.createBufferSource();
+      source.buffer = buf; source.loop = true;
+      source.connect(g); g.connect(masterGain); source.start();
+      activeNodes.push(source, g);
+      // slow wave LFO
+      const lfo = ctx.createOscillator();
+      const lfoG = ctx.createGain();
+      lfo.frequency.value = 0.12; lfoG.gain.value = 0.6;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      g.gain.value = 0.4;
+      lfo.start(); activeNodes.push(lfo, lfoG);
+      break;
+    }
+    case 5: { // Forest — pink noise high-passed + gentle LFO
+      const buf = createNoiseBuffer(ctx, 'pink');
+      const { source } = playNoiseSource(ctx, buf, 0.3);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass'; filter.frequency.value = 800;
+      source.disconnect(); source.connect(filter); filter.connect(masterGain);
+      activeNodes.push(filter);
+      break;
+    }
+    case 6: { // Thunderstorm — heavy pink noise + deep rumble
+      const buf1 = createNoiseBuffer(ctx, 'pink');
+      const buf2 = createNoiseBuffer(ctx, 'brown');
+      playNoiseSource(ctx, buf1, 0.6);
+      playNoiseSource(ctx, buf2, 0.9);
+      // thunder LFO
+      const lfo = ctx.createOscillator();
+      const lfoG = ctx.createGain();
+      lfo.frequency.value = 0.05; lfoG.gain.value = 0.4;
+      lfo.connect(lfoG); lfoG.connect(masterGain.gain);
+      masterGain.gain.value = musicVol / 100 * 0.9;
+      lfo.start(); activeNodes.push(lfo, lfoG);
+      break;
+    }
+    case 7: { // Library — very quiet white noise
+      const buf = createNoiseBuffer(ctx, 'white');
+      playNoiseSource(ctx, buf, 0.04);
+      break;
+    }
+    case 8: { // Fire — brown noise + low crackle
+      const buf1 = createNoiseBuffer(ctx, 'brown');
+      const buf2 = createNoiseBuffer(ctx, 'white');
+      playNoiseSource(ctx, buf1, 0.6);
+      const { source } = playNoiseSource(ctx, buf2, 0.08);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass'; filter.frequency.value = 400;
+      source.disconnect(); source.connect(filter); filter.connect(masterGain);
+      activeNodes.push(filter);
+      break;
+    }
+    case 9: { // Lo-fi — pink noise + gentle high shelf cut (warm)
+      const buf = createNoiseBuffer(ctx, 'pink');
+      const { source } = playNoiseSource(ctx, buf, 0.25);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowshelf'; filter.frequency.value = 500; filter.gain.value = 6;
+      source.disconnect(); source.connect(filter); filter.connect(masterGain);
+      activeNodes.push(filter);
+      // add lo-fi hum
+      const osc = ctx.createOscillator();
+      const oscG = ctx.createGain();
+      osc.type = 'triangle'; osc.frequency.value = 60; oscG.gain.value = 0.03;
+      osc.connect(oscG); oscG.connect(masterGain);
+      osc.start(); activeNodes.push(osc, oscG);
+      break;
+    }
+    default: {
+      const buf = createNoiseBuffer(ctx, 'pink');
+      playNoiseSource(ctx, buf, 0.5);
+    }
+  }
+}
+
+function buildTrackList() {
+  const list = document.getElementById('trackList'); list.innerHTML = '';
+  tracks.forEach((t,i) => {
+    const card = document.createElement('div');
+    card.className = `track-card${i===0?' active':''}`;
+    card.style.animationDelay = (i*35)+'ms';
+    card.innerHTML = `<div class="track-icon" style="background:${t.bg}">${t.emoji}</div><div class="track-info"><div class="track-name">${t.name}</div><div class="track-desc">${t.desc}</div></div><span class="track-tag ${t.tc}">${t.tag}</span>`;
+    card.onclick = () => selectTrack(i);
+    list.appendChild(card);
+  });
+}
+
+function selectTrack(idx) {
+  curTrack = idx; const t = tracks[idx];
+  document.getElementById('npIcon').textContent = t.emoji;
+  document.getElementById('npIcon').style.background = t.bg;
+  document.getElementById('npName').textContent = t.name;
+  document.getElementById('npDesc').textContent = t.desc;
+  document.querySelectorAll('.track-card').forEach((c,i) => c.classList.toggle('active', i===idx));
+  progSecs = 0;
+  document.getElementById('npProgFill').style.width = '0%';
+  document.getElementById('npCurrent').textContent = '0:00';
+  if (isPlaying) playAmbient(idx);
+}
+
+function togglePlay() {
+  isPlaying = !isPlaying;
+  document.getElementById('playBtn').textContent = isPlaying ? '⏸' : '▶';
+  document.querySelectorAll('.wave-bar').forEach(b => b.classList.toggle('playing', isPlaying));
+  if (isPlaying) {
+    getACtx().resume();
+    playAmbient(curTrack);
+    clearInterval(progInterval);
+    progInterval = setInterval(() => {
+      progSecs++;
+      const m = Math.floor(progSecs/60), s = progSecs%60;
+      document.getElementById('npCurrent').textContent = `${m}:${String(s).padStart(2,'0')}`;
+      document.getElementById('npProgFill').style.width = ((progSecs%60)/60*100)+'%';
+    }, 1000);
+  } else {
+    stopAllAudio();
+    clearInterval(progInterval);
+  }
+}
+
+function prevTrack() { selectTrack((curTrack-1+tracks.length)%tracks.length); }
+function nextTrack() { selectTrack((curTrack+1)%tracks.length); }
+
+function updateVol(s) {
+  musicVol = parseInt(s.value);
+  s.style.background = `linear-gradient(90deg,var(--accent) ${musicVol}%,var(--s3) ${musicVol}%)`;
+  if (masterGain) masterGain.gain.value = musicVol / 100 * 0.8;
+}
 
 // ═══════════════════════════════
 // INIT — THE FIXED LAUNCH LOGIC
 // ═══════════════════════════════
 window.addEventListener('load', () => {
+  // Init DOM references that need the page to be ready
+  chatArea = document.getElementById('chatArea');
+
+  // Touch listeners for resource sheet swipe-to-close
+  document.getElementById('resSheetInner').addEventListener('touchstart', e=>{touchStart=e.touches[0].clientY});
+  document.getElementById('resSheetInner').addEventListener('touchend', e=>{if(e.changedTouches[0].clientY-touchStart>80) closeResSheet();});
+
+  // Chat input enter key
+  document.getElementById('chatInput').addEventListener('keydown', e => { if(e.key==='Enter') handleChatSend(); });
+
   buildWeekStrip();
   setTodayGreeting();
   buildTrackList();
